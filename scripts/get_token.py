@@ -1,0 +1,100 @@
+"""Troca o token curto do Graph API Explorer pelo token de Pagina (que nao expira)
+e mostra o ID da conta do Instagram.
+
+Rode no seu terminal (os valores sao pedidos sem eco e nao ficam salvos em arquivo):
+  python scripts/get_token.py
+
+O token da Pagina e copiado para a area de transferencia (Windows) para voce colar
+direto no GitHub (Settings > Secrets > IG_ACCESS_TOKEN). Nao cole token em chats.
+"""
+import getpass
+import subprocess
+import sys
+
+import requests
+
+GRAPH = "https://graph.facebook.com/v21.0"
+
+
+def get(path, **params):
+    r = requests.get(f"{GRAPH}/{path}", params=params, timeout=60)
+    body = r.json()
+    if r.status_code >= 400:
+        sys.exit(f"Erro da API em {path}: {body.get('error', body)}")
+    return body
+
+
+def main():
+    app_id = input("ID do app (App ID) [4543833645854405]: ").strip() or "4543833645854405"
+    short = getpass.getpass("1) Cole o token do Explorer (nao aparece na tela) e aperte Enter: ").strip()
+    app_secret = getpass.getpass("2) Agora copie a chave secreta do app, cole aqui e aperte Enter: ").strip()
+    short = "".join(short.split())
+    app_secret = "".join(app_secret.split())
+    print(f"\nConferencia (sem mostrar os valores): token com {len(short)} caracteres, comeca com EA: {short.startswith('EA')}; "
+          f"chave com {len(app_secret)} caracteres, so letras/numeros: {app_secret.isalnum()}, comeca com EA: {app_secret.startswith('EA')}")
+    if len(app_secret) != 32 or not app_secret.isalnum():
+        sys.exit("A chave secreta deveria ter 32 caracteres (letras e numeros). Copie de novo em Configuracoes > Basico > Chave secreta.")
+    if not short.startswith("EA"):
+        sys.exit("O token do Explorer deveria comecar com EA. Copie de novo no Explorer (icone de copiar).")
+
+    long_user = get(
+        "oauth/access_token",
+        grant_type="fb_exchange_token",
+        client_id=app_id,
+        client_secret=app_secret,
+        fb_exchange_token=short,
+    )["access_token"]
+
+    pages = get(
+        "me/accounts",
+        fields="name,access_token,instagram_business_account{id,username}",
+        access_token=long_user,
+    ).get("data", [])
+
+    if not pages:
+        sys.exit("Nenhuma Pagina encontrada. Confirme que voce marcou a Pagina ao autorizar o token.")
+
+    print("\nPaginas encontradas:")
+    for i, p in enumerate(pages, 1):
+        ig = p.get("instagram_business_account")
+        ig_txt = f"Instagram @{ig['username']} (ID {ig['id']})" if ig else "SEM Instagram vinculado"
+        print(f"  {i}. {p['name']}  ->  {ig_txt}")
+
+    idx = int(input("\nQual Pagina e a do @4nderson.eng? (numero): ")) - 1
+    page = pages[idx]
+    ig = page.get("instagram_business_account")
+    if not ig:
+        sys.exit("Essa Pagina nao tem Instagram profissional vinculado. Vincule no app do Instagram e rode de novo.")
+
+    # Autoverificacao: o token da Pagina precisa conseguir ler a conta do Instagram
+    check = requests.get(
+        f"{GRAPH}/{ig['id']}",
+        params={"fields": "username", "access_token": page["access_token"]},
+        timeout=60,
+    )
+    if check.status_code >= 400:
+        sys.exit(f"Verificacao FALHOU: o token nao acessa a conta do Instagram: {check.json().get('error', check.text)}")
+    print(f"\nVerificacao OK: o token acessa @{check.json().get('username')}")
+
+    def copiar(texto):
+        subprocess.run("clip", input=texto.encode("ascii"), check=True)
+
+    # Mostra a validade do token da Pagina (precisa ser "nunca expira")
+    dbg = requests.get(
+        f"{GRAPH}/debug_token",
+        params={"input_token": page["access_token"], "access_token": long_user},
+        timeout=60,
+    ).json().get("data", {})
+    expira = "nunca expira" if not dbg.get("expires_at") else f"expira em {dbg['expires_at']} (timestamp)"
+    print(f"\nTipo do token: {dbg.get('type')}; {expira}")
+    if dbg.get("type") != "PAGE" or dbg.get("expires_at"):
+        sys.exit("ATENCAO: este nao e um token de Pagina permanente. Nao use. Rode de novo e me avise.")
+
+    copiar(page["access_token"])
+    print("\n=== UNICA COLAGEM NECESSARIA: IG_ACCESS_TOKEN ===")
+    print(f"Conta @{ig['username']}. O token de Pagina (permanente) ja foi copiado.")
+    print("No GitHub: Settings > Secrets > Actions > IG_ACCESS_TOKEN (New repository secret) > cole com Ctrl+V > Update secret.")
+    print("O IG_USER_ID nao e mais necessario (o robo descobre sozinho).")
+
+if __name__ == "__main__":
+    main()
