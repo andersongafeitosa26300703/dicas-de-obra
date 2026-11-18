@@ -1,6 +1,22 @@
 {
   "2026-11-17": {
-    "feed": {"media_id": "publicado-manualmente", "at": "2026-11-17T10:00:00-03:00"},
-    "reel": {"media_id": "publicado-manualmente", "at": "2026-11-17T10:30:00-03:00"}
+    "feed": {
+      "media_id": "publicado-manualmente",
+      "at": "2026-11-17T10:00:00-03:00"
+    },
+    "reel": {
+      "media_id": "publicado-manualmente",
+      "at": "2026-11-17T10:30:00-03:00"
+    }
+  },
+  "2026-11-18": {
+    "feed": {
+      "media_id": "publicado-manualmente",
+      "at": "2026-11-18T09:00:00-03:00"
+    },
+    "reel": {
+      "media_id": "publicado-manualmente",
+      "at": "2026-11-18T09:10:00-03:00"
+    }
   }
 }
